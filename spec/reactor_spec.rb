@@ -6,11 +6,11 @@ describe Reactor, "#running?" do
   end
   context "during #run()" do
     it "should be running" do
-      subject.run{|r| r.should be_running; r.stop }
+      subject.run{|r| r.should be_running }
     end
   end
   context "after #run()" do
-    before { subject.run{|r| r.stop } }
+    before { subject.run }
     it { should_not be_running }
   end
 end
@@ -20,7 +20,7 @@ describe Reactor, "#run" do
     expect { subject.run{|r| raise "foo" } }.to raise_error "foo"
   end
   it "should yield itself" do
-    subject.run{|r| r.should be subject; r.stop }
+    subject.run{|r| r.should be subject }
   end
   context "with time based events added in the past" do
     it "should fire events" do
@@ -28,7 +28,6 @@ describe Reactor, "#run" do
       subject.run do |r|
         r.at(1){ tally += 1}
         r.at(2){ tally += 1}
-        r.at(3){ r.stop }
       end
       tally.should == 2
     end
@@ -71,16 +70,17 @@ describe Reactor, "#run" do
 end
 
 describe Reactor, "#timers" do
-  let(:reactor) { Reactor.new }
-  subject { reactor.timers }
   it { should be_empty }
+  its(:timers) { should be_empty }
   context "a time based event added" do
     let(:blk) { proc{'foo'} }
     before do
-      reactor.at(123, &blk)
+      subject.at(123, &blk)
     end
     it { should_not be_empty }
-    its(:shift) { should == [blk, []] }
+    it "should have block and args as first value in timers" do
+      subject.timers.shift.should == [blk, []]
+    end
   end
 end
 

@@ -14,7 +14,10 @@ class Reactor
   def run
     @running = true
     yield self if block_given?
-    self.tick while self.running?
+    while self.running? do
+      self.tick
+      self.stop if self.empty?
+    end
   end
 
   def stop
@@ -38,6 +41,10 @@ class Reactor
       block, args = @timers.shift
       block.call(*args)
     end
+  end
+
+  def empty?
+    @timers.empty?
   end
 
 end
