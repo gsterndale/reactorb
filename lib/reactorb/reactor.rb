@@ -36,7 +36,7 @@ class Reactor
   end
 
   def call_timers
-    now = Time.now.to_i
+    now = self.class.now
     while @timers.any? && @timers.first_key <= now
       block, args = @timers.shift
       block.call(*args)
@@ -45,6 +45,10 @@ class Reactor
 
   def empty?
     @timers.empty?
+  end
+
+  def self.now
+    Time.now.to_i
   end
 
 end

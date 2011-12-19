@@ -1,4 +1,5 @@
 require 'rspec'
+require 'timecop'
 require 'reactorb'
 
 # Requires supporting files with custom matchers and macros, etc,

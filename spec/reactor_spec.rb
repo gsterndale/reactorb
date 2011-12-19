@@ -16,6 +16,12 @@ describe Reactor, "#running?" do
 end
 
 describe Reactor, "#run" do
+  let(:now) { 1324311324 }
+  before do
+    start = now
+    Timecop.freeze(start)
+    Reactor.stub(:now) { start += 1 }
+  end
   it "should execute block passed" do
     expect { subject.run{|r| raise "foo" } }.to raise_error "foo"
   end
@@ -45,19 +51,16 @@ describe Reactor, "#run" do
   end
   context "with time based events added in the future" do
     it "should fire events" do
-      now = Time.now.to_i + 1
       tally = 0
       subject.run do |r|
         r.at(now+1){ tally += 1}
         r.at(now+2){ tally += 1}
-        r.at(now+3){ r.stop }
       end
       tally.should == 2
     end
   end
   context "stopped with time based events added in the future" do
     it "should not fire events" do
-      now = Time.now.to_i + 1
       tally = 0
       subject.run do |r|
         r.at(now+1){ r.stop }
