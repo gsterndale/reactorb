@@ -38,6 +38,16 @@ describe Reactor, "#run" do
       tally.should == 2
     end
   end
+  context "with time based events added for the same in the past" do
+    it "should fire events" do
+      tally = 0
+      subject.run do |r|
+        r.at(1){ tally += 1}
+        r.at(1){ tally += 1}
+      end
+      tally.should == 2
+    end
+  end
   context "stopped with time based events added in the past" do
     it "should fire events" do
       tally = 0
@@ -82,7 +92,7 @@ describe Reactor, "#timers" do
     end
     it { should_not be_empty }
     it "should have block and args as first value in timers" do
-      subject.timers.shift.should == [blk, []]
+      subject.timers.shift.should include [blk, []]
     end
   end
 end

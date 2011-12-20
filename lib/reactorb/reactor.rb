@@ -1,10 +1,12 @@
+require 'reactorb/callback_registry'
+
 class Reactor
 
   attr_reader :timers
 
   def initialize()
     @running = false
-    @timers = ShiftableHash.new
+    @timers = CallbackRegistry.new
   end
 
   def running?
@@ -24,22 +26,21 @@ class Reactor
     @running = false
   end
 
-  def first_tick()
-  end
-
-  def tick()
-    self.call_timers()
+  def tick
+    @tick_time = self.class.now.to_i
+    self.call_timers
+    @tick_time = nil
   end
 
   def at(time_or_number, *args, &block)
-    @timers[time_or_number.to_i] = [block, args]
+    @timers[time_or_number.to_i] << [block, args]
   end
 
   def call_timers
-    now = self.class.now
-    while @timers.any? && @timers.first_key <= now
-      block, args = @timers.shift
-      block.call(*args)
+    while @timers.any? && @timers.first_key <= self.tick_time
+      @timers.shift.each do |block, args|
+        block.call(*args)
+      end
     end
   end
 
@@ -51,20 +52,8 @@ class Reactor
     Time.now.to_i
   end
 
-end
+protected
 
-class ShiftableHash < Hash
-  def first_key
-    self.keys.sort.first
-  end
-  def shift
-    if key = self.first_key
-      self.delete key
-    end
-  end
-  def shift_pair
-    if key = self.first_key
-      [ key, self.delete(key) ]
-    end
-  end
+  attr_reader :tick_time
+
 end
