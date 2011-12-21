@@ -97,3 +97,66 @@ describe Reactor, "#timers" do
   end
 end
 
+describe Reactor, "with #attach'ed IO" do
+  let(:pipe)     { IO.pipe }
+  let(:reader)   { pipe[0] }
+  let(:writer)   { pipe[1] }
+  let(:message)  { "ohai " * 123 }
+  let(:sent)     { message.clone }
+  let(:received) { '' }
+  let(:reactor)  { Reactor.new }
+  let(:write_chunk) do
+    proc {|io| io.close if io.write(sent.slice!(0..49)) < 50 }
+  end
+  let(:read_chunk) do
+    proc {|io| received << (io.read(10) || io.close || '') }
+  end
+  subject { reactor }
+
+  its(:ios) { should be_empty }
+
+  context "for :read events" do
+    before do
+      reactor.attach reader, :read, &read_chunk
+    end
+    its(:ios) { should_not be_empty }
+    describe "#ios" do
+      subject { reactor.ios }
+      its(:keys) { should include reader }
+    end
+
+    context "#detach'ed" do
+      before do
+        reactor.detach reader
+      end
+      describe "#ios" do
+        subject { reactor.ios }
+        its(:keys) { should_not include reader }
+      end
+    end
+  end
+
+  context "#run" do
+    it "should read entire message in IO #attach'ed to :read" do
+      writer.write(sent)
+      writer.close
+      reactor.attach reader, :read, &read_chunk
+      subject.run
+      received.should == message
+    end
+    it "should write entire message from IO #attach'ed to :write" do
+      reactor.attach writer, :write, &write_chunk
+      subject.run
+      reader.read.should == message
+      reader.close
+    end
+    it "should transfer entire message from one #attach'ed IO to another" do
+      subject.run do |reactor|
+        reactor.attach writer, :write, &write_chunk
+        reactor.attach reader, :read, &read_chunk
+      end
+      received.should == message
+    end
+  end
+end
+
