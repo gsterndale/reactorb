@@ -37,6 +37,9 @@ describe Reactor, "time based events" do
     Reactor.stub(:now) { start += 1 }
     self.tally = 0
   end
+  after do
+    Timecop.return
+  end
   context "added in the past" do
     it "should fire events" do
       subject.in -2, &incrementor
@@ -76,7 +79,7 @@ describe Reactor, "time based events" do
   end
 end
 
-describe Reactor, "#timers" do
+describe Reactor, "#timer_registry" do
   let(:now) { Time.at(1324311324) }
   let(:delay) { 123 }
   let(:later) { now + delay }
@@ -84,17 +87,20 @@ describe Reactor, "#timers" do
   let(:callback) { proc{'foo'} }
   subject { reactor }
   it { should be_empty }
-  its(:timers) { should be_empty }
+  its(:timer_registry) { should be_empty }
   before do
     Timecop.freeze(now)
+  end
+  after do
+    Timecop.return
   end
   context "a time based event added #in N seconds" do
     before do
       reactor.in(delay, &callback)
     end
     it { should_not be_empty }
-    describe "#timers" do
-      subject { reactor.timers }
+    describe "#timer_registry" do
+      subject { reactor.timer_registry }
       its(:shift) { should include [callback, []] }
       its(:keys) { should include later.to_i }
     end
@@ -104,8 +110,8 @@ describe Reactor, "#timers" do
       reactor.at(later, &callback)
     end
     it { should_not be_empty }
-    describe "#timers" do
-      subject { reactor.timers }
+    describe "#timer_registry" do
+      subject { reactor.timer_registry }
       its(:shift) { should include [callback, []] }
       its(:keys) { should include later.to_i }
     end
@@ -128,15 +134,15 @@ describe Reactor, "with #attach'ed IO" do
   end
   subject { reactor }
 
-  its(:ios) { should be_empty }
+  its(:io_registry) { should be_empty }
 
   context "for :read events" do
     before do
       reactor.attach reader, :read, &read_chunk
     end
-    its(:ios) { should_not be_empty }
-    describe "#ios" do
-      subject { reactor.ios }
+    its(:io_registry) { should_not be_empty }
+    describe "#io_registry" do
+      subject { reactor.io_registry }
       its(:keys) { should include reader }
     end
 
@@ -144,8 +150,8 @@ describe Reactor, "with #attach'ed IO" do
       before do
         reactor.detach reader
       end
-      describe "#ios" do
-        subject { reactor.ios }
+      describe "#io_registry" do
+        subject { reactor.io_registry }
         its(:keys) { should_not include reader }
       end
     end
