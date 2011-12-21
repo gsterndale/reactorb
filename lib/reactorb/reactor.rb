@@ -43,8 +43,12 @@ class Reactor
     @tick_time = nil
   end
 
-  def at(time_or_number, *args, &handler)
-    @timers[time_or_number.to_i] << [handler, args]
+  def in(seconds, *args, &handler)
+    self.at(self.class.now + seconds, *args, &handler)
+  end
+
+  def at(time, *args, &handler)
+    @timers[time.to_i] << [handler, args]
   end
 
   def attach(io, *args, &handler)

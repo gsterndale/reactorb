@@ -16,83 +16,98 @@ describe Reactor, "#running?" do
 end
 
 describe Reactor, "#run" do
-  let(:now) { 1324311324 }
-  before do
-    start = now
-    Timecop.freeze(start)
-    Reactor.stub(:now) { start += 1 }
-  end
   it "should execute block passed" do
     expect { subject.run{|r| raise "foo" } }.to raise_error "foo"
   end
   it "should yield itself" do
     subject.run{|r| r.should be subject }
   end
-  context "with time based events added in the past" do
+end
+
+describe Reactor, "time based events" do
+  let(:reactor) { Reactor.new }
+  let(:now) { Time.at(1324311324) }
+  attr_accessor :tally
+  let(:incrementor) { proc { self.tally += 1 } }
+  let(:stopper) { proc {|r| reactor.stop } }
+  subject { reactor }
+  before do
+    start = now
+    Timecop.freeze(start)
+    Reactor.stub(:now) { start += 1 }
+    self.tally = 0
+  end
+  context "added in the past" do
     it "should fire events" do
-      tally = 0
-      subject.run do |r|
-        r.at(1){ tally += 1}
-        r.at(2){ tally += 1}
-      end
-      tally.should == 2
+      subject.in -2, &incrementor
+      subject.in -1, &incrementor
+      expect { subject.run }.to change { tally }.by(2)
     end
   end
-  context "with time based events added for the same in the past" do
+  context "added for the same in the past" do
     it "should fire events" do
-      tally = 0
-      subject.run do |r|
-        r.at(1){ tally += 1}
-        r.at(1){ tally += 1}
-      end
-      tally.should == 2
+      subject.at now-1, &incrementor
+      subject.at now-1, &incrementor
+      expect { subject.run }.to change { tally }.by(2)
     end
   end
-  context "stopped with time based events added in the past" do
+  context "added in the past, stopped" do
     it "should fire events" do
-      tally = 0
-      subject.run do |r|
-        r.at(1){ r.stop }
-        r.at(2){ tally += 1}
-        r.at(3){ tally += 1}
-      end
-      tally.should == 2
+      subject.in -3, &stopper
+      subject.in -2, &incrementor
+      subject.in -1, &incrementor
+      expect { subject.run }.to change { tally }.by(2)
     end
   end
-  context "with time based events added in the future" do
+  context "added in the future" do
     it "should fire events" do
-      tally = 0
-      subject.run do |r|
-        r.at(now+1){ tally += 1}
-        r.at(now+2){ tally += 1}
-      end
-      tally.should == 2
+      subject.in 5, &incrementor
+      subject.in 8, &incrementor
+      expect { subject.run }.to change { tally }.by(2)
     end
   end
-  context "stopped with time based events added in the future" do
+  context "added in the future, stopped" do
     it "should not fire events" do
-      tally = 0
-      subject.run do |r|
-        r.at(now+1){ r.stop }
-        r.at(now+2){ tally += 1}
-        r.at(now+3){ tally += 1}
-      end
-      tally.should == 0
+      subject.in 1, &stopper
+      subject.in 5, &incrementor
+      subject.in 8, &incrementor
+      expect { subject.run }.not_to change { tally }
     end
   end
 end
 
 describe Reactor, "#timers" do
+  let(:now) { Time.at(1324311324) }
+  let(:delay) { 123 }
+  let(:later) { now + delay }
+  let(:reactor) { Reactor.new }
+  let(:handler) { proc{'foo'} }
+  subject { reactor }
   it { should be_empty }
   its(:timers) { should be_empty }
-  context "a time based event added" do
-    let(:blk) { proc{'foo'} }
+  before do
+    Timecop.freeze(now)
+  end
+  context "a time based event added #in N seconds" do
     before do
-      subject.at(123, &blk)
+      reactor.in(delay, &handler)
     end
     it { should_not be_empty }
-    it "should have block and args as first value in timers" do
-      subject.timers.shift.should include [blk, []]
+    describe "#timers" do
+      subject { reactor.timers }
+      its(:shift) { should include [handler, []] }
+      its(:keys) { should include later.to_i }
+    end
+  end
+  context "a time based event added #at N time" do
+    before do
+      reactor.at(later, &handler)
+    end
+    it { should_not be_empty }
+    describe "#timers" do
+      subject { reactor.timers }
+      its(:shift) { should include [handler, []] }
+      its(:keys) { should include later.to_i }
     end
   end
 end
