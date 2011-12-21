@@ -81,7 +81,7 @@ describe Reactor, "#timers" do
   let(:delay) { 123 }
   let(:later) { now + delay }
   let(:reactor) { Reactor.new }
-  let(:handler) { proc{'foo'} }
+  let(:callback) { proc{'foo'} }
   subject { reactor }
   it { should be_empty }
   its(:timers) { should be_empty }
@@ -90,23 +90,23 @@ describe Reactor, "#timers" do
   end
   context "a time based event added #in N seconds" do
     before do
-      reactor.in(delay, &handler)
+      reactor.in(delay, &callback)
     end
     it { should_not be_empty }
     describe "#timers" do
       subject { reactor.timers }
-      its(:shift) { should include [handler, []] }
+      its(:shift) { should include [callback, []] }
       its(:keys) { should include later.to_i }
     end
   end
   context "a time based event added #at N time" do
     before do
-      reactor.at(later, &handler)
+      reactor.at(later, &callback)
     end
     it { should_not be_empty }
     describe "#timers" do
       subject { reactor.timers }
-      its(:shift) { should include [handler, []] }
+      its(:shift) { should include [callback, []] }
       its(:keys) { should include later.to_i }
     end
   end

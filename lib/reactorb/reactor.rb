@@ -38,25 +38,25 @@ class Reactor
   def tick
     @tick_time = self.class.now.to_i
     self.trim_events
-    self.handle_events
-    self.handle_timers
+    self.call_events
+    self.call_timers
     @tick_time = nil
   end
 
-  def in(seconds, *args, &handler)
-    self.at(self.class.now + seconds, *args, &handler)
+  def in(seconds, *args, &callback)
+    self.at(self.class.now + seconds, *args, &callback)
   end
 
-  def at(time, *args, &handler)
-    @timers[time.to_i] << [handler, args]
+  def at(time, *args, &callback)
+    @timers[time.to_i] << [callback, args]
   end
 
-  def attach(io, *args, &handler)
+  def attach(io, *args, &callback)
     events = EVENTS & args # intersection
     @ios[io].tap do |registry|
       registry[:events] |= events # append new, unique values
       registry[:args] = args - events
-      events.each {|event| registry[:callbacks][event] = handler }
+      events.each {|event| registry[:callbacks][event] = callback }
     end
   end
 
@@ -72,21 +72,21 @@ protected
 
   attr_reader :tick_time
 
-  def handle_timers
+  def call_timers
     while @timers.any? && @timers.first_key <= self.tick_time
-      @timers.shift.each do |handler, args|
-        handler.call(*args)
+      @timers.shift.each do |callback, args|
+        callback.call(*args)
       end
     end
   end
 
-  def handle_events
+  def call_events
     return if @ios.empty?
     self.ready_ios_by_event.each do |event, ready_ios|
       ready_ios.each do |io|
         next unless @ios.has_key? io
-        next unless handler = @ios[io][:callbacks][event]
-        handler.call(io, *@ios[io][:args])
+        next unless callback = @ios[io][:callbacks][event]
+        callback.call(io, *@ios[io][:args])
       end
     end
   end
