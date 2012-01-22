@@ -6,28 +6,24 @@ $: << "#{File.dirname(__FILE__)}/../lib/"
 require 'reactorb'
 require 'socket'
 
-socket = TCPSocket.open('gregsterndale.com', '80')
-response = ''
+host    = 'www.google.com'
+port    = '80'
+request = "GET / HTTP/1.0\r\n\r\n"
+bytes   = ''
 
 Reactor.new.run do |reactor|
 
+  socket  = TCPSocket.open(host, port)
   reactor.attach socket, :write do |io|
-    socket.write "GET / HTTP/1.0\r\n\r\n"
-    puts 'wrote'
+    socket.write request
     reactor.detach(io)
 
     reactor.attach socket, :read do |io|
-      if io.eof?
-        io.close
-        next
-      end
-      chunk = io.read_nonblock(1448)
-      puts "read #{chunk.bytesize}"
-      response << chunk
+      io.eof? ? io.close : bytes << io.read
     end
   end
 
 end
 
 puts "Reactor stopped"
-puts "Response size: #{response.bytesize}"
+puts "Bytes read: #{bytes.bytesize}"
