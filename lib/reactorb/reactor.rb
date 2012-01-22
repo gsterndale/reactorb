@@ -5,6 +5,10 @@ class Reactor
   IO_EVENTS  = [:read, :write, :error].freeze
   IO_TIMEOUT = 0.01
 
+  def self.run(&block)
+    self.new.run(&block)
+  end
+
   def self.now
     Time.now.to_i
   end

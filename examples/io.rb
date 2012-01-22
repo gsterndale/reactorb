@@ -8,7 +8,7 @@ message = ['0'..'9', 'A'..'Z', 'a'..'z'].map(&:to_a).flatten.join
 
 reader, writer = IO.pipe
 
-Reactor.new.run do |reactor|
+Reactor.run do |reactor|
 
   reactor.attach writer, :write do |write_io|
     chunk = message.slice!(0..9)

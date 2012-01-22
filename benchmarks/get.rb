@@ -32,7 +32,7 @@ puts "Read #{bytes.bytesize} bytes in %.4fsec serially" % serial_sec
 puts "Reactor:"
 bytes = ''
 reactor_sec = Benchmark.realtime do
-  Reactor.new.run do |reactor|
+  Reactor.run do |reactor|
     count.times do |i|
       io = TCPSocket.open(host, port)
       reactor.attach io, :write do |write_io|

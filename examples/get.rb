@@ -11,7 +11,7 @@ port    = '80'
 request = "GET / HTTP/1.0\r\n\r\n"
 bytes   = ''
 
-Reactor.new.run do |reactor|
+Reactor.run do |reactor|
 
   socket  = TCPSocket.open(host, port)
   reactor.attach socket, :write do |io|

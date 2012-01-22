@@ -6,7 +6,7 @@ require 'reactorb'
 
 n = 0
 
-Reactor.new.run do |reactor|
+Reactor.run do |reactor|
   reactor.at(Time.now + 1) do
     puts "one"
     n += 1

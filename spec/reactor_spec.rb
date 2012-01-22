@@ -24,6 +24,16 @@ describe Reactor, "#run" do
   end
 end
 
+describe Reactor, ".run" do
+  subject { Reactor }
+  it "should execute block passed" do
+    expect { subject.run{|r| raise "foo" } }.to raise_error "foo"
+  end
+  it "should yield instance of itself" do
+    subject.run{|r| r.should be_a subject }
+  end
+end
+
 describe Reactor, "time based events" do
   let(:reactor) { Reactor.new }
   let(:now) { Time.at(1324311324) }
