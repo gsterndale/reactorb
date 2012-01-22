@@ -79,7 +79,7 @@ describe Reactor, "time based events" do
   end
 end
 
-describe Reactor, "#timer_registry" do
+describe Reactor, "#timer_dispatcher" do
   let(:now) { Time.at(1324311324) }
   let(:delay) { 123 }
   let(:later) { now + delay }
@@ -87,7 +87,7 @@ describe Reactor, "#timer_registry" do
   let(:callback) { proc{'foo'} }
   subject { reactor }
   it { should be_empty }
-  its(:timer_registry) { should be_empty }
+  its(:timer_dispatcher) { should be_empty }
   before do
     Timecop.freeze(now)
   end
@@ -99,8 +99,8 @@ describe Reactor, "#timer_registry" do
       reactor.in(delay, &callback)
     end
     it { should_not be_empty }
-    describe "#timer_registry" do
-      subject { reactor.timer_registry }
+    describe "#timer_dispatcher" do
+      subject { reactor.timer_dispatcher }
       its(:shift) { should include [callback, []] }
       its(:keys) { should include later.to_i }
     end
@@ -110,8 +110,8 @@ describe Reactor, "#timer_registry" do
       reactor.at(later, &callback)
     end
     it { should_not be_empty }
-    describe "#timer_registry" do
-      subject { reactor.timer_registry }
+    describe "#timer_dispatcher" do
+      subject { reactor.timer_dispatcher }
       its(:shift) { should include [callback, []] }
       its(:keys) { should include later.to_i }
     end
@@ -134,15 +134,15 @@ describe Reactor, "with #attach'ed IO" do
   end
   subject { reactor }
 
-  its(:io_registry) { should be_empty }
+  its(:event_dispatcher) { should be_empty }
 
   context "for :read events" do
     before do
       reactor.attach reader, :read, &read_chunk
     end
-    its(:io_registry) { should_not be_empty }
-    describe "#io_registry" do
-      subject { reactor.io_registry }
+    its(:event_dispatcher) { should_not be_empty }
+    describe "#event_dispatcher" do
+      subject { reactor.event_dispatcher }
       its(:keys) { should include reader }
     end
 
@@ -150,8 +150,8 @@ describe Reactor, "with #attach'ed IO" do
       before do
         reactor.detach reader
       end
-      describe "#io_registry" do
-        subject { reactor.io_registry }
+      describe "#event_dispatcher" do
+        subject { reactor.event_dispatcher }
         its(:keys) { should_not include reader }
       end
     end

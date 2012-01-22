@@ -1,9 +1,7 @@
-require 'reactorb/callback_registry'
-
 class Reactor
 
-  attr_reader :timer_registry
-  attr_reader :io_registry
+  attr_reader :timer_dispatcher
+  attr_reader :event_dispatcher
   IO_EVENTS  = [:read, :write, :error].freeze
   IO_TIMEOUT = 0.01
 
@@ -13,8 +11,8 @@ class Reactor
 
   def initialize
     @running = false
-    @timer_registry = CallbackRegistry.new
-    @io_registry = IOCallbackRegistry.new
+    @timer_dispatcher = TimerDispatcher.new
+    @event_dispatcher = IODispatcher.new
   end
 
   def running?
@@ -36,76 +34,121 @@ class Reactor
 
   def tick
     @tick_time = self.class.now.to_i
-    self.call_events
-    self.call_timers
+    self.dispatch_events
+    self.dispatch_timers
     @tick_time = nil
   end
 
-  def in(seconds, *args, &callback)
-    self.at(self.class.now + seconds, *args, &callback)
+  def in(seconds, *args, &handler)
+    self.at(self.class.now + seconds, *args, &handler)
   end
 
-  def at(time, *args, &callback)
-    @timer_registry[time.to_i] << [callback, args]
+  def at(time, *args, &handler)
+    @timer_dispatcher.register(time.to_i, args, handler)
   end
 
-  def attach(io, *args, &callback)
+  def attach(io, *args, &handler)
     events = IO_EVENTS & args # intersection
     args = args - events
-    events.each do |event|
-      @io_registry[io][event] = [callback, args]
-    end
+    @event_dispatcher.register(io, events, args, handler)
   end
 
   def detach(io)
-    @io_registry.delete io
+    @event_dispatcher.unregister io
   end
 
   def empty?
-    @io_registry.empty? && @timer_registry.empty?
+    @event_dispatcher.empty? && @timer_dispatcher.empty?
   end
 
 protected
 
-  attr_reader :tick_time
-
-  def call_timers
-    while @timer_registry.any? && @timer_registry.first_key <= self.tick_time
-      @timer_registry.shift.each do |callback, args|
-        callback.call(*args)
-      end
-    end
+  def dispatch_timers
+    @timer_dispatcher.dispatch(@tick_time)
   end
 
-  def call_events
-    @io_registry.reject_closed
-    return if @io_registry.empty?
+  def dispatch_events
+    @event_dispatcher.unregister_closed
+    return if @event_dispatcher.empty?
     self.ready_ios_by_event.each do |event, ios|
       ios.each do |io|
-        callback, args = @io_registry[io][event]
-        next unless callback
-        callback.call(io, *args)
+        @event_dispatcher.dispatch(io, event)
       end
     end
   end
 
   def ready_ios_by_event
-    ios = IO.select(@io_registry.ios_for(:read), @io_registry.ios_for(:write), @io_registry.ios_for(:error), IO_TIMEOUT)
+    ios = IO.select(
+      @event_dispatcher.registered_for(:read),
+      @event_dispatcher.registered_for(:write),
+      @event_dispatcher.registered_for(:error),
+      IO_TIMEOUT
+    )
     return {} unless ios
     { :read => ios[0], :write => ios[1], :error => ios[2] }
   end
 
-  class IOCallbackRegistry < Hash
+  class TimerDispatcher < Hash
     def initialize(*args, &blk)
-      blk ||= proc {|registries,io| registries[io] = CallbackRegistry.new }
+      blk ||= proc {|registries,io| registries[io] = [] }
+      super *args, &blk
+    end
+
+    def register(times, args, handler)
+      Array(times).each do |time|
+        self[time] << [handler, args]
+      end
+    end
+
+    def dispatch(time)
+      while self.any? && first_key <= time
+        shift.each do |handler, args|
+          handler.call(*args)
+        end
+      end
+    end
+
+    private
+
+    def first_key
+      self.keys.sort.first
+    end
+
+    def shift
+      if key = first_key
+        self.delete key
+      end
+    end
+  end
+
+  class IODispatcher < Hash
+    def initialize(*args, &blk)
+      blk ||= proc {|registries,io| registries[io] = {} }
       super *args, &blk
     end
     alias_method :io?, :key?
     alias_method :ios, :keys
-    def ios_for(event)
+
+    def register(io, events, args, handler)
+      Array(events).each do |event|
+        self[io][event] = [handler, args]
+      end
+    end
+
+    def unregister(io)
+      self.delete io
+    end
+
+    def dispatch(io, event)
+      handler, args = self[io][event]
+      handler.call(io, *args) if handler
+    end
+
+    def registered_for(event)
       self.select{|io, registry| registry.key?(event) }.keys
     end
-    def reject_closed
+
+    def unregister_closed
       self.reject!{|io, registry| io.closed? }
     end
   end
