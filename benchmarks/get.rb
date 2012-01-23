@@ -4,18 +4,21 @@
 $: << "#{File.dirname(__FILE__)}/../lib/"
 
 require 'reactorb'
+require 'reactorb/http'
 require 'socket'
+require 'uri'
 require 'benchmark'
 
-count   = 100
-host    = 'www.google.com'
+count   = 200
+host    = 'localhost'#'www.gregsterndale.com'
 port    = '80'
 request = "GET / HTTP/1.0\r\n\r\n"
+uri     = URI.parse("http://#{host}/")
 
 
-puts "Serial requests:"
+puts "TCPSockets:"
 bytes   = ''
-serial_sec = Benchmark.realtime do
+sockets_sec = Benchmark.realtime do
   count.times do |i|
     io = TCPSocket.open(host, port)
     io.write request
@@ -26,10 +29,14 @@ serial_sec = Benchmark.realtime do
   end
 end
 puts
-puts "Read #{bytes.bytesize} bytes in %.4fsec serially" % serial_sec
+puts "Read #{bytes.bytesize} bytes in %.4fsec just TCPSockets (%.0fbytes/sec)" % [sockets_sec, bytes.bytesize / sockets_sec]
 
 
-puts "Reactor:"
+# puts "Threaded requests:"
+# raise "TODO"
+
+
+puts "Reactor TCPSockets:"
 bytes = ''
 reactor_sec = Benchmark.realtime do
   Reactor.run do |reactor|
@@ -48,16 +55,45 @@ reactor_sec = Benchmark.realtime do
   end
 end
 puts
-puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor" % reactor_sec
+puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor and TCPSockets (%.0fbytes/sec)" % [reactor_sec, bytes.bytesize / reactor_sec]
 
 
-if reactor_sec < serial_sec
-  winner  = 'Reactor'
-  diff    = serial_sec-reactor_sec
-  percent = (100*diff/serial_sec)
-else
-  winner  = 'Serial'
-  diff    = reactor_sec-serial_sec
-  percent = (100*diff/reactor_sec)
+puts "Reactor gets:"
+bytes = ''
+gets_sec = Benchmark.realtime do
+Reactor.run do |reactor|
+  include Reactor::HTTP
+  count.times do |i|
+    reactor.get uri do |response|
+      bytes << response
+      print '.'
+    end
+  end
 end
-puts "#{winner} was %.2fsec / %.2f%% faster" % [diff, percent]
+end
+puts
+puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor gets (%.0fbytes/sec)" % [gets_sec, bytes.bytesize / gets_sec]
+
+
+
+puts "Reactor agets:"
+bytes = ''
+fiber_sec = Benchmark.realtime do
+Reactor.run do |reactor|
+  include Reactor::HTTP
+  (1..count).map{ reactor.aget(uri) }.each{|response| bytes << response; print '.' }
+end
+end
+puts
+puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor fiber gets (%.0fbytes/sec)" % [fiber_sec, bytes.bytesize / fiber_sec]
+
+results = {
+  'Serial Socket'  => sockets_sec,
+  'Reactor Socket' => reactor_sec,
+  'Reactor Serial'  => gets_sec,
+  'Reactor Fiber'  => fiber_sec,
+}
+
+results.each do |name, time|
+  puts "#{name}:\t#{time}"
+end
