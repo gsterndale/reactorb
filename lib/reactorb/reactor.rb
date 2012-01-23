@@ -25,7 +25,9 @@ class Reactor
 
   def run
     @running = true
-    yield self if block_given?
+    Fiber.new do
+      yield self if block_given?
+    end.resume
     while self.running? do
       self.tick
       self.stop if self.empty?
