@@ -9,8 +9,8 @@ require 'socket'
 require 'uri'
 require 'benchmark'
 
-count   = 200
-host    = 'localhost'#'www.gregsterndale.com'
+host    = ARGV.shift || 'localhost'
+count   = ARGV.shift || 200
 port    = '80'
 request = "GET / HTTP/1.0\r\n\r\n"
 uri     = URI.parse("http://#{host}/")
@@ -61,15 +61,15 @@ puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor and TCPSockets (%.0fb
 puts "Reactor gets:"
 bytes = ''
 gets_sec = Benchmark.realtime do
-Reactor.run do |reactor|
-  include Reactor::HTTP
-  count.times do |i|
-    reactor.get uri do |response|
-      bytes << response
-      print '.'
+  Reactor.run do |reactor|
+    include Reactor::HTTP
+    count.times do |i|
+      reactor.get uri do |response|
+        bytes << response
+        print '.'
+      end
     end
   end
-end
 end
 puts
 puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor gets (%.0fbytes/sec)" % [gets_sec, bytes.bytesize / gets_sec]
@@ -79,18 +79,18 @@ puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor gets (%.0fbytes/sec)"
 puts "Reactor agets:"
 bytes = ''
 fiber_sec = Benchmark.realtime do
-Reactor.run do |reactor|
-  include Reactor::HTTP
-  (1..count).map{ reactor.aget(uri) }.each{|response| bytes << response; print '.' }
-end
+  Reactor.run do |reactor|
+    include Reactor::HTTP
+    (1..count).map{ reactor.aget(uri) }.each{|response| bytes << response; print '.' }
+  end
 end
 puts
-puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor fiber gets (%.0fbytes/sec)" % [fiber_sec, bytes.bytesize / fiber_sec]
+puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor fiber agets (%.0fbytes/sec)" % [fiber_sec, bytes.bytesize / fiber_sec]
 
 results = {
   'Serial Socket'  => sockets_sec,
   'Reactor Socket' => reactor_sec,
-  'Reactor Serial'  => gets_sec,
+  'Reactor Serial' => gets_sec,
   'Reactor Fiber'  => fiber_sec,
 }
 
