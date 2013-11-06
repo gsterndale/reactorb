@@ -32,8 +32,52 @@ puts
 puts "Read #{bytes.bytesize} bytes in %.4fsec just TCPSockets (%.0fbytes/sec)" % [sockets_sec, bytes.bytesize / sockets_sec]
 
 
-# puts "Threaded requests:"
-# raise "TODO"
+puts "Threaded requests:"
+bytes   = ''
+threads_sec = Benchmark.realtime do
+  threads = (1..count).map do |i|
+    Thread.new do
+      io = TCPSocket.open(host, port)
+      io.write request
+      while !io.closed?
+        io.eof? ? io.close : bytes << io.read
+        print '.'
+        # print i
+      end
+    end
+  end
+  threads.map(&:join)
+end
+puts
+puts "Read #{bytes.bytesize} bytes in %.4fsec TCPSockets with #{count} threads (%.0fbytes/sec)" % [threads_sec, bytes.bytesize / threads_sec]
+
+
+puts "Thread pool requests:"
+bytes   = ''
+pool_sec = Benchmark.realtime do
+  completes = 0
+  threads = []
+  i = 0
+  pool_size = 25
+  while completes < count
+    if i < count && threads.size < pool_size
+      threads << Thread.new do
+        me = (i += 1)
+        io = TCPSocket.open(host, port)
+        io.write request
+        while !io.closed?
+          io.eof? ? io.close : bytes << io.read
+          print '.'
+          # puts "- #{me} -"
+        end
+        completes += 1
+      end
+    end
+    threads.select! { |thread| thread.alive? }
+  end
+end
+puts
+puts "Read #{bytes.bytesize} bytes in %.4fsec TCPSockets using a Thread pool (%.0fbytes/sec)" % [pool_sec, bytes.bytesize / pool_sec]
 
 
 puts "Reactor TCPSockets:"
@@ -88,10 +132,12 @@ puts
 puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor fiber agets (%.0fbytes/sec)" % [fiber_sec, bytes.bytesize / fiber_sec]
 
 results = {
-  'Serial Socket'  => sockets_sec,
-  'Reactor Socket' => reactor_sec,
-  'Reactor Serial' => gets_sec,
-  'Reactor Fiber'  => fiber_sec,
+  'Serial Socket'   => sockets_sec,
+  'Threads Socket'  => threads_sec,
+  'Thread Pool'     => pool_sec,
+  'Reactor Socket'  => reactor_sec,
+  'Reactor Serial'  => gets_sec,
+  'Reactor Fiber'   => fiber_sec,
 }
 
 results.each do |name, time|
