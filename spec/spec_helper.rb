@@ -1,6 +1,6 @@
 require 'rspec'
 require 'timecop'
-require 'reactorb'
+require File.expand_path("../../lib/reactorb", __FILE__)
 
 # Requires supporting files with custom matchers and macros, etc,
 # in ./support/ and its subdirectories.
