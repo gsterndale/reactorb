@@ -40,9 +40,12 @@ threads_sec = Benchmark.realtime do
       io = TCPSocket.open(host, port)
       io.write request
       while !io.closed?
-        io.eof? ? io.close : bytes << io.read
-        print '.'
-        # print i
+        begin
+          io.eof? ? io.close : bytes << io.read
+          print '.'
+        rescue Errno::ECONNRESET
+          print 'F'
+        end
       end
     end
   end
