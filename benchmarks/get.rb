@@ -11,7 +11,7 @@ require 'benchmark'
 
 host    = ARGV.shift || 'localhost'
 count   = (ARGV.shift || 200).to_i
-port    = '80'
+port    = '8888'
 request = "GET / HTTP/1.0\r\n\r\n"
 uri     = URI.parse("http://#{host}/")
 
