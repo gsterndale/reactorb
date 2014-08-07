@@ -28,6 +28,21 @@ class Reactor
     end
 
     class ADelegator < Delegator
+      def self.future(&block)
+        delegator = ADelegator.new
+        Fiber.new do
+          f = Fiber.current
+          callback = -> (result) { f.resume(result) }
+          block.call(callback)
+          # yield control back to context that resume()d
+          # current fiber (Reactor#run() Fiber)
+          # Then Fiber.yield will return the response once
+          # this fiber is resume()d
+          delegator.__setobj__ Fiber.yield
+        end.resume
+        delegator
+      end
+
       def initialize(obj=nil)
         super
         @obj_set         = !!obj
@@ -37,6 +52,8 @@ class Reactor
       def __getobj__
         if !@obj_set
           @fiber = Fiber.current
+          # yield control back to context that
+          #   resume()d current fiber (#aget() Fiber)
           Fiber.yield
         end
         @delegate_sd_obj
@@ -52,13 +69,9 @@ class Reactor
 
     # Fiber gymnastics
     def aget(uri)
-      delegator = ADelegator.new
-      Fiber.new do
-        f = Fiber.current
-        self.get(uri) {|response| f.resume(response) }
-        delegator.__setobj__ Fiber.yield
-      end.resume
-      delegator
+      ADelegator.future do |callback|
+        self.get(uri) {|response| callback.call(response) }
+      end
     end
 
 
