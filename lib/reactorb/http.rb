@@ -20,7 +20,8 @@ class Reactor
           else
             # TODO determine performance characteristics
             # bytes << read_io.read_nonblock(1448)
-            bytes << read_io.read
+            chunk = read_io.read(20)
+            bytes << chunk
           end
         end
       end
@@ -57,7 +58,7 @@ class Reactor
         self.get(uri) {|response| f.resume(response) }
         delegator.__setobj__ Fiber.yield
       end.resume
-      return delegator
+      delegator
     end
 
 
