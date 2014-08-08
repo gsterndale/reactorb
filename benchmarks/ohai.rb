@@ -3,6 +3,7 @@
 
 require 'socket'
 
+delay = 0
 verbose = false
 host = "localhost"
 port = 8888
@@ -18,7 +19,7 @@ begin
         request_lines << line.chomp
       end
       puts request_lines.first if verbose
-
+      sleep delay if delay > 0
       resp = "<html><body><h1>Time is #{Time.now}</h1></body></html>"
       headers = ["http/1.1 200 ok",
                  "content-type: text/html",
