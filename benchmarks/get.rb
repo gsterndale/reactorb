@@ -14,7 +14,7 @@ count   = (ARGV.shift || 200).to_i
 port    = '8888'
 request = "GET / HTTP/1.0\r\n\r\n"
 uri     = URI.parse("http://#{host}/")
-
+CONNECTION_ERRORS = [ Errno::ECONNRESET, Errno::ECONNREFUSED ]
 
 puts "TCPSockets:"
 bytes   = ''
@@ -29,7 +29,7 @@ sockets_sec = Benchmark.realtime do
   end
 end
 puts
-puts "Read #{bytes.bytesize} bytes in %.4fsec just TCPSockets (%.0fbytes/sec)" % [sockets_sec, bytes.bytesize / sockets_sec]
+puts "Read #{bytes.bytesize} bytes in %.4fsec just TCPSockets (%.0f bytes/sec)" % [sockets_sec, bytes.bytesize / sockets_sec]
 
 
 puts "Threaded requests:"
@@ -43,7 +43,7 @@ threads_sec = Benchmark.realtime do
         begin
           io.eof? ? io.close : bytes << io.read
           print '.'
-        rescue Errno::ECONNRESET
+        rescue *CONNECTION_ERRORS
           print 'F'
         end
       end
@@ -52,35 +52,41 @@ threads_sec = Benchmark.realtime do
   threads.map(&:join)
 end
 puts
-puts "Read #{bytes.bytesize} bytes in %.4fsec TCPSockets with #{count} threads (%.0fbytes/sec)" % [threads_sec, bytes.bytesize / threads_sec]
+puts "Read #{bytes.bytesize} bytes in %.4fsec TCPSockets with #{count} threads (%.0f bytes/sec)" % [threads_sec, bytes.bytesize / threads_sec]
 
-
+require 'timeout'
 puts "Thread pool requests:"
 bytes   = ''
 pool_sec = Benchmark.realtime do
   completes = 0
   threads = []
   i = 0
-  pool_size = 25
-  while completes < count
-    if i < count && threads.size < pool_size
-      threads << Thread.new do
-        me = (i += 1)
-        io = TCPSocket.open(host, port)
-        io.write request
-        while !io.closed?
-          io.eof? ? io.close : bytes << io.read
-          print '.'
-          # puts "- #{me} -"
+  pool_size = [count, 25].min
+  begin
+    Timeout::timeout(20) do
+      while completes < count
+        if i < count && threads.size < pool_size
+          threads << Thread.new do
+            me = (i += 1)
+            io = TCPSocket.open(host, port)
+            io.write request
+            while !io.closed?
+              io.eof? ? io.close : bytes << io.read
+              print '.'
+              # puts "- #{me} -"
+            end
+            completes += 1
+          end
         end
-        completes += 1
+        threads.select! { |thread| thread.alive? }
       end
     end
-    threads.select! { |thread| thread.alive? }
+  rescue Timeout::Error
+    puts 'timeout'
   end
 end
 puts
-puts "Read #{bytes.bytesize} bytes in %.4fsec TCPSockets using a Thread pool (%.0fbytes/sec)" % [pool_sec, bytes.bytesize / pool_sec]
+puts "Read #{bytes.bytesize} bytes in %.4fsec TCPSockets using a Thread pool (%.0f bytes/sec)" % [pool_sec, bytes.bytesize / pool_sec]
 
 
 puts "Reactor TCPSockets:"
@@ -94,15 +100,19 @@ reactor_sec = Benchmark.realtime do
         reactor.detach(write_io)
 
         reactor.attach io, :read do |read_io|
-          read_io.eof? ? read_io.close : bytes << read_io.read
-          print '.'
+          begin
+            read_io.eof? ? read_io.close : bytes << read_io.read
+            print '.'
+          rescue *CONNECTION_ERRORS
+            print 'F'
+          end
         end
       end
     end
   end
 end
 puts
-puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor and TCPSockets (%.0fbytes/sec)" % [reactor_sec, bytes.bytesize / reactor_sec]
+puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor and TCPSockets (%.0f bytes/sec)" % [reactor_sec, bytes.bytesize / reactor_sec]
 
 
 puts "Reactor gets:"
@@ -111,15 +121,19 @@ gets_sec = Benchmark.realtime do
   Reactor.run do |reactor|
     include Reactor::HTTP
     count.times do |i|
-      reactor.get uri do |response|
-        bytes << response
-        print '.'
+      begin
+        reactor.get uri do |response|
+          bytes << response
+          print '.'
+        end
+      rescue *CONNECTION_ERRORS
+        print 'F'
       end
     end
   end
 end
 puts
-puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor gets (%.0fbytes/sec)" % [gets_sec, bytes.bytesize / gets_sec]
+puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor gets (%.0f bytes/sec)" % [gets_sec, bytes.bytesize / gets_sec]
 
 
 
@@ -128,11 +142,21 @@ bytes = ''
 fiber_sec = Benchmark.realtime do
   Reactor.run do |reactor|
     include Reactor::HTTP
-    (1..count).map{ reactor.aget(uri) }.each{|response| bytes << response; print '.' }
+    (1..count).map do
+      begin
+        reactor.aget(uri)
+      rescue *CONNECTION_ERRORS
+        print 'F'
+        ''
+      end
+    end.each do |response|
+      bytes << response
+      print '.'
+    end
   end
 end
 puts
-puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor fiber agets (%.0fbytes/sec)" % [fiber_sec, bytes.bytesize / fiber_sec]
+puts "Read #{bytes.bytesize} bytes in %.4fsec with reactor fiber agets (%.0f bytes/sec)" % [fiber_sec, bytes.bytesize / fiber_sec]
 
 results = {
   'Serial Socket'   => sockets_sec,
