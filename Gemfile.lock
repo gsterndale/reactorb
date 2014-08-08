@@ -52,5 +52,5 @@ PLATFORMS
 DEPENDENCIES
   rspec (~> 3)
   rspec-its
-  timecop (~> 0.3)
+  timecop
   transpec
