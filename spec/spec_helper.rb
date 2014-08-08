@@ -1,4 +1,5 @@
 require 'rspec'
+require 'rspec/its'
 require 'timecop'
 require File.expand_path("../../lib/reactorb", __FILE__)
 
