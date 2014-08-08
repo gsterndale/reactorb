@@ -2,16 +2,16 @@ require 'spec_helper'
 
 describe Reactor, "#running?" do
   context "before #run()" do
-    it { should_not be_running }
+    it { is_expected.not_to be_running }
   end
   context "during #run()" do
     it "should be running" do
-      subject.run{|r| r.should be_running }
+      subject.run{|r| expect(r).to be_running }
     end
   end
   context "after #run()" do
     before { subject.run }
-    it { should_not be_running }
+    it { is_expected.not_to be_running }
   end
 end
 
@@ -20,7 +20,7 @@ describe Reactor, "#run" do
     expect { subject.run{|r| raise "foo" } }.to raise_error "foo"
   end
   it "should yield itself" do
-    subject.run{|r| r.should be subject }
+    subject.run{|r| expect(r).to be subject }
   end
 end
 
@@ -30,7 +30,7 @@ describe Reactor, ".run" do
     expect { subject.run{|r| raise "foo" } }.to raise_error "foo"
   end
   it "should yield instance of itself" do
-    subject.run{|r| r.should be_a subject }
+    subject.run{|r| expect(r).to be_a subject }
   end
 end
 
@@ -44,7 +44,7 @@ describe Reactor, "time based events" do
   before do
     start = now
     Timecop.freeze(start)
-    Reactor.stub(:now) { start += 1 }
+    allow(Reactor).to receive(:now) { start += 1 }
     self.tally = 0
   end
   after do
@@ -96,7 +96,7 @@ describe Reactor, "#timer_dispatcher" do
   let(:reactor) { Reactor.new }
   let(:callback) { proc{'foo'} }
   subject { reactor }
-  it { should be_empty }
+  it { is_expected.to be_empty }
   its(:timer_dispatcher) { should be_empty }
   before do
     Timecop.freeze(now)
@@ -108,7 +108,7 @@ describe Reactor, "#timer_dispatcher" do
     before do
       reactor.in(delay, &callback)
     end
-    it { should_not be_empty }
+    it { is_expected.not_to be_empty }
     describe "#timer_dispatcher" do
       subject { reactor.timer_dispatcher }
       its(:shift) { should include [callback, []] }
@@ -119,7 +119,7 @@ describe Reactor, "#timer_dispatcher" do
     before do
       reactor.at(later, &callback)
     end
-    it { should_not be_empty }
+    it { is_expected.not_to be_empty }
     describe "#timer_dispatcher" do
       subject { reactor.timer_dispatcher }
       its(:shift) { should include [callback, []] }
@@ -175,12 +175,12 @@ describe Reactor, "with #attach'ed IO" do
       writer.close
       reactor.attach reader, :read, &read_chunk
       subject.run
-      received.should == message
+      expect(received).to eq(message)
     end
     it "should write entire message from IO #attach'ed to :write" do
       reactor.attach writer, :write, &write_chunk
       subject.run
-      reader.read.should == message
+      expect(reader.read).to eq(message)
       reader.close
     end
     it "should transfer entire message from one #attach'ed IO to another" do
@@ -188,7 +188,7 @@ describe Reactor, "with #attach'ed IO" do
         reactor.attach writer, :write, &write_chunk
         reactor.attach reader, :read, &read_chunk
       end
-      received.should == message
+      expect(received).to eq(message)
     end
   end
 end
