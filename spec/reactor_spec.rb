@@ -149,15 +149,13 @@ describe Reactor, "with #attach'ed IO" do
   context "for :read events" do
     before do
       reactor.attach reader, :read, &read_chunk
+      reader.close
+      writer.close
     end
     its(:event_dispatcher) { should_not be_empty }
     describe "#event_dispatcher" do
       subject { reactor.event_dispatcher.keys }
-      it "includes reader" do
-        # TODO why is this broken?
-        # expect(subject).to include reader
-        expect(subject.include? reader).to equal true
-      end
+      it { is_expected.to include reader }
     end
 
     context "#detach'ed" do
@@ -166,9 +164,7 @@ describe Reactor, "with #attach'ed IO" do
       end
       describe "#event_dispatcher" do
         subject { reactor.event_dispatcher.keys }
-        it "excludes reader" do
-          expect(subject.include? reader).to equal false
-        end
+        it { is_expected.not_to include reader }
       end
     end
   end
