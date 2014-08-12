@@ -6,11 +6,23 @@ class Reactor
   module HTTP
     BYTE_SIZE = 100 # TODO determine performance characteristics
 
-    def get(uri, &handler)
+    %i(get put post delete head).each do |verb|
+      define_method verb, -> (uri, &handler) do
+        request(verb.to_s.upcase, uri, &handler)
+      end
+
+      define_method "a#{verb}".to_sym do |uri|
+        Future.start do |handler|
+          request(verb.to_s.upcase, uri, &handler)
+        end
+      end
+    end
+
+    def request(verb, uri, &handler)
       io = TCPSocket.open(uri.host, uri.port)
       bytes = ''
       self.attach io, :write do |write_io|
-        io.write "GET #{uri.path} HTTP/1.0\r\n\r\n"
+        io.write "#{verb.upcase} #{uri.path} HTTP/1.0\r\n\r\n"
         self.detach(write_io)
         self.attach io, :read do |read_io|
           if read_io.eof?
@@ -21,19 +33,6 @@ class Reactor
           end
         end
       end
-    end
-
-    def aget(uri)
-      Future.start {|handler| self.get(uri, &handler) }
-    end
-
-    def head(uri, &handler)
-    end
-    def delete(uri, &handler)
-    end
-    def put(uri, data, &handler)
-    end
-    def post(uri, data, &handler)
     end
   end
 end
